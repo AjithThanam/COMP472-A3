@@ -4,117 +4,88 @@ from node import Node
 from state import State
 
 
+evaluated_counter = 0
+depth_counter = 0
+visited_counter = 1
+
 def main():
-	str_input = "7 1 1 2"
-	# node = Node(1, None, 0, None, math.inf, -math.inf, [], [])
-	# parent_state = State([1], 3)
-	# child = Node(5, node, 0, None, math.inf, -math.inf, [])
-	# state = State([1,5],7)
-	# children = generate_children(node, parent_state)
+	str_input = "3 1 1 1"
 
-	num_tokens, num_taken_tokens, list_taken_tokens, depth = parse_input(
-		str_input)
+	num_tokens, num_taken_tokens, list_taken_tokens, depth, start_token = parse_input(str_input)
 	start_state = State(list_taken_tokens, num_tokens)
-	# parent_node = Node(list_taken_tokens[len(list_taken_tokens) - 1], None, 0, None,math.inf, -math.inf, [])
-	start_node = Node(1, None, 0, None, math.inf, -math.inf, [], start_state)
+	start_node = Node(start_token, None, 0, None, -math.inf, math.inf, [], start_state)
 	players_turn = get_players_turn(list_taken_tokens)
-	run_ab_algo(start_node, start_state, depth, players_turn)
+	response = run_ab_algo(start_node, start_state, depth, players_turn, -math.inf, math.inf)
+	count_visited(start_node)
+	output_results(start_node, response)
 
-	# print(parse_input(str_input))
-	# print(first_move(8))
-	# print(possible_tokens(2, [1,3,5,6,7,8]))
-	# print(get_remaining_tokens(9,[2,1,4,3]))
+def count_visited(node):
+	global visited_counter
 
+	if(len(node.children) == 0):
+		return
 
-def run_ab_algo(start_node, state, depth, players_turn):
-	open_stack = []
-	closed_stack = []
-	parent_stack = []
-	bottom_reached = False
-	bubbling_up = False
-	move = 0
-
+	for child in node.children:
+		if(child.score != None):
+			visited_counter += 1
+			count_visited(child)
+		
+def run_ab_algo(node, state, depth, players_turn, alpha, beta):
 	if depth == 0:
 		max_depth = math.inf
 	else:
 		max_depth = depth
 
-	open_stack.append(start_node)
+	global evaluated_counter
+	global depth_counter
+	
+	children = generate_children(node, node.state)
+	
+	if node.depth == max_depth or len(children) == 0:
+		evaluated_counter += 1
+		if node.depth > depth_counter:
+			depth_counter = node.depth
+		return get_score(node, node.state)
 
-	while len(open_stack) > 0:
-		if len(closed_stack) == 0:
-			current_node = open_stack.pop()
-			closed_stack.append(current_node)
-		else:
-			closed_stack.append(current_node)
-			current_node = open_stack.pop()
-
-		while current_node.depth < max_depth:
-
-			children = generate_children(current_node, current_node.state)
-
-			if(len(children) == 0):
+	if players_turn:
+		max_val = -math.inf	
+		for child in children:
+			temp_val = run_ab_algo(child, child.state, depth, not players_turn, alpha, beta)
+			max_val = max(max_val, temp_val)
+			alpha = max(alpha, temp_val)
+			child.score = temp_val
+			if beta <= alpha:
 				break
-
-			for child in children:
-				open_stack.append(child)
-				
-			closed_stack.append(current_node)
-			parent_stack.append(current_node)
-			current_node = open_stack.pop()
+		return max_val
+	else:
+		min_val = +math.inf	
+		for child in children:
+			temp_val = run_ab_algo(child, child.state, depth, not players_turn, alpha, beta)
+			min_val = min(min_val, temp_val)
+			beta = min(beta, temp_val)
+			child.score = temp_val
+			if beta <= alpha:
+				break
+		return min_val
 		
-		if current_node.depth == max_depth or len(children) == 0:
-			bottom_reached = True
-
-		if bottom_reached:
-			get_score(current_node, current_node.state)
-			if get_players_turn(current_node.state.taken_tokens):
-				if current_node.parent.score == None:
-					current_node.parent.score = current_node.score
-					move = current_node.value
-				elif current_node.score < current_node.parent.score:
-					current_node.parent.score = current_node.score
-					move = current_node.value
-			else:
-				if current_node.parent.score == None:
-					current_node.parent.score = current_node.score
-					move = current_node.value
-				elif current_node.score > current_node.parent.score:
-					current_node.parent.score = current_node.score
-					move = current_node.value
-
-	if len(open_stack) == 0: 
-		
-		while len(parent_stack) != 1:	  
-			parent_node = parent_stack.pop()
-
-			if get_players_turn(parent_node.state.taken_tokens):
-				if parent_node.parent.score == None:
-					parent_node.parent.score = parent_node.score
-					move = parent_node.value
-				elif parent_node.score < parent_node.parent.score:
-					parent_node.parent.score = parent_node.score
-					move = parent_node.value
-			else:
-				if parent_node.parent.score == None:
-					parent_node.parent.score = parent_node.score
-					move = parent_node.value
-				elif parent_node.score > parent_node.parent.score:
-					parent_node.parent.score = parent_node.score
-					move = parent_node.value
-	
-	parent_node = parent_stack.pop()
-	print(parent_node.score)
-	get_best_move(parent_node)
-	
-
-def get_best_move(node):
+def output_results(node, score):
+	global evaluated_counter
+	global depth_counter
+	global visited_counter
 	smallest_num = 100
+
+	branching_factor = round(((visited_counter-1)/(visited_counter-evaluated_counter)), 1)
+
 	for child in node.children:
-		if child.score == node.score and child.value < smallest_num:
+		if child.score == score and child.value < smallest_num:
 			smallest_num = child.value
 
-	print(smallest_num)
+	print("Best Move: " + str(smallest_num))
+	print("Score: " + str(score))
+	print("Visited Counter: " + str(visited_counter))
+	print("Evaluated Counter: " + str(evaluated_counter))
+	print("Max Depth: " + str(depth_counter))
+	print("Avg Effective Branching Factor: " + str(branching_factor))
 
 # convert input string to a tuple
 def parse_input(inputStr):
@@ -127,12 +98,15 @@ def parse_input(inputStr):
 	# Handles wether there have been any tokens that were taken
 	if num_taken_tokens != 0:
 		list_taken_tokens = list(parsed_input[2:len(parsed_input) - 1])
+		start_token = parsed_input[len(parsed_input)-2]
+		print(start_token)
 	else:
 		list_taken_tokens = []
+		start_token = None
 
 	depth = parsed_input[len(parsed_input)-1]
 
-	return num_tokens, num_taken_tokens, list_taken_tokens, depth
+	return num_tokens, num_taken_tokens, list_taken_tokens, depth, start_token
 
 # provides a list of potential tokens to pick from on the first move
 def first_move(num_tokens):
@@ -178,6 +152,7 @@ def get_remaining_tokens(num_tokens, taken_tokens):
 
 	return remaining_tokens
 
+# returns if a number is prime or not
 def isPrime(number):
 	result = True
 
@@ -188,6 +163,7 @@ def isPrime(number):
 			if (number % i) == 0 & number != i:
 				result = False
 				break
+	
 
 	return result
 
@@ -207,14 +183,6 @@ def getMaxPrime(number):
 		maxPrime = number
 	  
 	return int(maxPrime)
-
-def getOutput():
-	print("Move: ")
-	print("Value: ")
-	print("Number of Nodes Visited: ")
-	print("Number of Nodes Evaluated: ")
-	print("Max Depth Reached: ")
-	print("Avg Effective Branching Factor: ")
 
 def generate_children(parent_node, state):
 	if(parent_node.value == None):
@@ -237,10 +205,10 @@ def create_nodes(parent_node, moves_list, state):
 	for move in moves_list:
 		new_state = copy.deepcopy(state)
 		new_state.taken_tokens.append(move)
-		node = Node(move, parent_node, parent_node.depth+1, None, math.inf, -math.inf, [], new_state)
+		node = Node(move, parent_node, parent_node.depth+1, None, -math.inf, math.inf, [], new_state)
 		nodes.append(node)
-
-	return nodes    
+	
+	return nodes
 
 def get_score(node, state):
 
@@ -270,7 +238,7 @@ def get_score(node, state):
 		
 		if(turn == "min"):
 			node.score = -1 * node.score
-
+			
 	elif isPrime(node.parent.value):
 		multiples = num_multiples(node.parent, node.parent.value)
 		
@@ -307,7 +275,6 @@ def num_multiples(node, prime):
 	
 	return num_multiples
 		
-
 if __name__ == '__main__':
 	main()
 	 
